@@ -53,13 +53,13 @@ https://yourdomain.com/sitemap.xml
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://yourdomain.com/about.html</loc>
-    <lastmod>2026-03-01T12:00:00Z</lastmod>
+    <lastmod>2026-03-01</lastmod>
     <changefreq>always</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://yourdomain.com/hello-world.html</loc>
-    <lastmod>2026-03-01T08:00:00Z</lastmod>
+    <lastmod>2026-03-01</lastmod>
     <changefreq>always</changefreq>
     <priority>0.5</priority>
   </url>
