@@ -72,19 +72,50 @@ class Action extends Widget implements ActionInterface
             echo "\t</url>\n";
         }
 
+        // 只按固定链接实际用到的变量做补全, 用不到的一律不查
+        $postParams = Router::get('post')['params'] ?? [];
+        $needCategory = in_array('category', $postParams, true) || in_array('mid', $postParams, true);
+        $needDate = [] !== array_intersect(['year', 'month', 'day'], $postParams);
+
+        // 一次性取回全部文章的分类, 避免逐篇查询 (N+1)
+        $categories = [];
+        if ($needCategory && !empty($articles)) {
+            foreach (array_chunk(array_column($articles, 'cid'), 500) as $chunk) {
+                $rows = $db->fetchAll($db->select(
+                    'table.relationships.cid',
+                    'table.metas.mid',
+                    'table.metas.slug'
+                )->from('table.metas')
+                    ->join('table.relationships', 'table.relationships.mid = table.metas.mid')
+                    ->where('table.relationships.cid IN ?', $chunk)
+                    ->where('table.metas.type = ?', 'category')
+                    ->order('table.metas.order', Db::SORT_ASC));
+
+                // 全局按 order 升序, 故每个 cid 首次出现的即是 order 最小的分类
+                foreach ($rows as $row) {
+                    if (!isset($categories[$row['cid']])) {
+                        $categories[$row['cid']] = $row;
+                    }
+                }
+            }
+        }
+
         foreach ($articles as $article) {
             $type = $article['type'];
-            $article['categories'] = $db->fetchAll($db->select('table.metas.slug')->from('table.metas')
-                ->join('table.relationships', 'table.relationships.mid = table.metas.mid')
-                ->where('table.relationships.cid = ?', $article['cid'])
-                ->where('table.metas.type = ?', 'category')
-                ->order('table.metas.order', Db::SORT_ASC));
-            $article['category'] = urlencode(current(array_column($article['categories'], 'slug')));
             $article['slug'] = urlencode($article['slug']);
-            $date = new Date($article['created']);
-            $article['year'] = $date->year;
-            $article['month'] = $date->month;
-            $article['day'] = $date->day;
+
+            if ($needCategory) {
+                $article['category'] = urlencode($categories[$article['cid']]['slug'] ?? '');
+                $article['mid'] = $categories[$article['cid']]['mid'] ?? '';
+            }
+
+            if ($needDate) {
+                $date = new Date($article['created']);
+                $article['year'] = $date->year;
+                $article['month'] = $date->month;
+                $article['day'] = $date->day;
+            }
+
             $pathinfo = Router::get($type) !== null ? Router::url($type, $article) : '#';
             $permalink = Common::url($pathinfo, $options->index);
 
