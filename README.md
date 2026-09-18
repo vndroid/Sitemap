@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 自动收录所有已发布的**文章**（post）与**独立页面**（page）
+- 自动收录已发布、达到发布时间且未设置访问密码的**文章**（post）与**独立页面**（page）
 - 输出标准 XML 格式，兼容 Google Search Console、Bing Webmaster Tools 等主流搜索引擎
 - 文章优先级 `0.5`，页面优先级 `0.8`
 - 包含 `<lastmod>`（最后修改时间）、`<changefreq>` 字段

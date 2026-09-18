@@ -32,12 +32,14 @@ class Action extends Widget implements ActionInterface
         $pages = $db->fetchAll($db->select()->from('table.contents')
             ->where('table.contents.status = ?', 'publish')
             ->where('table.contents.created < ?', Date::time())
+            ->where("table.contents.password IS NULL OR table.contents.password = ''")
             ->where('table.contents.type = ?', 'page')
             ->order('table.contents.created', Db::SORT_DESC));
 
         $articles = $db->fetchAll($db->select()->from('table.contents')
             ->where('table.contents.status = ?', 'publish')
             ->where('table.contents.created < ?', Date::time())
+            ->where("table.contents.password IS NULL OR table.contents.password = ''")
             ->where('table.contents.type = ?', 'post')
             ->order('table.contents.created', Db::SORT_DESC));
 
