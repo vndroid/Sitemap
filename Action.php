@@ -29,14 +29,26 @@ class Action extends Widget implements ActionInterface
         $db = Db::get();
         $options = Options::alloc();
 
-        $pages = $db->fetchAll($db->select()->from('table.contents')
+        $pages = $db->fetchAll($db->select(
+            'table.contents.cid',
+            'table.contents.slug',
+            'table.contents.type',
+            'table.contents.created',
+            'table.contents.modified'
+        )->from('table.contents')
             ->where('table.contents.status = ?', 'publish')
             ->where('table.contents.created < ?', Date::time())
             ->where("table.contents.password IS NULL OR table.contents.password = ''")
             ->where('table.contents.type = ?', 'page')
             ->order('table.contents.created', Db::SORT_DESC));
 
-        $articles = $db->fetchAll($db->select()->from('table.contents')
+        $articles = $db->fetchAll($db->select(
+            'table.contents.cid',
+            'table.contents.slug',
+            'table.contents.type',
+            'table.contents.created',
+            'table.contents.modified'
+        )->from('table.contents')
             ->where('table.contents.status = ?', 'publish')
             ->where('table.contents.created < ?', Date::time())
             ->where("table.contents.password IS NULL OR table.contents.password = ''")
@@ -62,7 +74,7 @@ class Action extends Widget implements ActionInterface
 
         foreach ($articles as $article) {
             $type = $article['type'];
-            $article['categories'] = $db->fetchAll($db->select()->from('table.metas')
+            $article['categories'] = $db->fetchAll($db->select('table.metas.slug')->from('table.metas')
                 ->join('table.relationships', 'table.relationships.mid = table.metas.mid')
                 ->where('table.relationships.cid = ?', $article['cid'])
                 ->where('table.metas.type = ?', 'category')
