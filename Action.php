@@ -9,6 +9,7 @@ use Typecho\Db\Exception;
 use Typecho\Router;
 use Typecho\Widget;
 use Widget\ActionInterface;
+use Widget\Metas\Category\Rows as CategoryRows;
 use Widget\Options;
 
 if (!defined('__TYPECHO_ROOT_DIR__')) {
@@ -75,27 +76,65 @@ class Action extends Widget implements ActionInterface
 
         // 只按固定链接实际用到的变量做补全, 用不到的一律不查
         $postParams = Router::get('post')['params'] ?? [];
-        $needCategory = in_array('category', $postParams, true) || in_array('mid', $postParams, true);
+        $needDirectory = in_array('directory', $postParams, true);
+        $needCategory = $needDirectory
+            || in_array('category', $postParams, true)
+            || in_array('mid', $postParams, true);
         $needDate = [] !== array_intersect(['year', 'month', 'day'], $postParams);
 
-        // 一次性取回全部文章的分类, 避免逐篇查询 (N+1)
-        $categories = [];
+        // 复用 Typecho 的分类树顺序, 再批量取回文章与分类的关系, 避免逐篇查询 (N+1)
+        $articleCategories = [];
+        $categoryRows = null;
         if ($needCategory && !empty($articles)) {
+            $categoryRows = CategoryRows::allocWithAlias('sitemap-category-rows');
+            $allCategories = [];
+            while ($categoryRows->next()) {
+                $allCategories[] = [
+                    'mid' => $categoryRows->mid,
+                    'slug' => $categoryRows->slug,
+                    'order' => $categoryRows->order,
+                ];
+            }
+
+            // Typecho 1.2 按 order、mid 选择文章主分类; Related 类引入后改为分类树顺序
+            if (!class_exists('Widget\Metas\Category\Related')) {
+                usort($allCategories, static function ($a, $b) {
+                    return [$a['order'], $a['mid']] <=> [$b['order'], $b['mid']];
+                });
+            }
+
+            $categoryMap = [];
+            $categoryRanks = [];
+            foreach ($allCategories as $rank => $category) {
+                $mid = (int)$category['mid'];
+                $categoryMap[$mid] = $category;
+                $categoryRanks[$mid] = $rank;
+            }
+
             foreach (array_chunk(array_column($articles, 'cid'), 500) as $chunk) {
                 $rows = $db->fetchAll($db->select(
                     'table.relationships.cid',
-                    'table.metas.mid',
-                    'table.metas.slug'
-                )->from('table.metas')
-                    ->join('table.relationships', 'table.relationships.mid = table.metas.mid')
+                    'table.relationships.mid'
+                )->from('table.relationships')
                     ->where('table.relationships.cid IN ?', $chunk)
-                    ->where('table.metas.type = ?', 'category')
-                    ->order('table.metas.order', Db::SORT_ASC));
+                );
 
-                // 全局按 order 升序, 故每个 cid 首次出现的即是 order 最小的分类
                 foreach ($rows as $row) {
-                    if (!isset($categories[$row['cid']])) {
-                        $categories[$row['cid']] = $row;
+                    $cid = (int)$row['cid'];
+                    $mid = (int)$row['mid'];
+
+                    if (!isset($categoryMap[$mid])) {
+                        continue;
+                    }
+
+                    if (
+                        !isset($articleCategories[$cid])
+                        || $categoryRanks[$mid] < $articleCategories[$cid]['rank']
+                    ) {
+                        $articleCategories[$cid] = [
+                            'rank' => $categoryRanks[$mid],
+                            'row' => $categoryMap[$mid],
+                        ];
                     }
                 }
             }
@@ -106,8 +145,19 @@ class Action extends Widget implements ActionInterface
             $article['slug'] = urlencode($article['slug']);
 
             if ($needCategory) {
-                $article['category'] = urlencode($categories[$article['cid']]['slug'] ?? '');
-                $article['mid'] = $categories[$article['cid']]['mid'] ?? '';
+                $category = $articleCategories[$article['cid']]['row'] ?? null;
+                $article['category'] = urlencode($category['slug'] ?? '');
+                $article['mid'] = $category['mid'] ?? '';
+
+                if ($needDirectory) {
+                    $directory = [];
+                    if ($category !== null) {
+                        $directory = $categoryRows->getAllParentsSlug((int)$category['mid']);
+                        $directory[] = $category['slug'];
+                    }
+
+                    $article['directory'] = implode('/', array_map('urlencode', $directory));
+                }
             }
 
             if ($needDate) {
