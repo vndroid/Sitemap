@@ -10,6 +10,7 @@
 - 包含 `<lastmod>`（最后修改时间，统一输出 UTC，如 `2026-03-01T08:30:00Z`）、`<changefreq>` 字段
 - 非 ASCII 的 slug（如中文）自动做 URL 编码，与站点 canonical 保持一致
 - 固定链接含 `{category}` / `{directory}` 时，自动跳过没有分类的文章（这类文章在此链接格式下无法访问）
+- 输出 `ETag` 与 `Cache-Control: no-cache` 响应头，支持 `If-None-Match` 条件请求：内容未变化时返回 `304 Not Modified`，节省爬虫抓取流量；新内容发布后立即可见
 - 访问地址固定为 `/sitemap.xml`，无需额外配置
 
 ## 环境要求

@@ -6,6 +6,7 @@ use Typecho\Common;
 use Typecho\Date;
 use Typecho\Db;
 use Typecho\Db\Exception;
+use Typecho\Response;
 use Typecho\Router;
 use Typecho\Widget;
 use Widget\ActionInterface;
@@ -57,7 +58,8 @@ class Action extends Widget implements ActionInterface
             ->where('table.contents.type = ?', 'post')
             ->order('table.contents.created', Db::SORT_DESC));
 
-        $this->response->setContentType('application/xml');
+        // 先缓冲完整输出, 以便基于内容计算 ETag
+        ob_start();
         echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
         echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
 
@@ -193,5 +195,56 @@ class Action extends Widget implements ActionInterface
         }
 
         echo "</urlset>";
+        $xml = ob_get_clean();
+
+        // ETag 取自最终内容: 内容一变 ETag 即变, 无需任何失效逻辑
+        $etag = '"' . md5($xml) . '"';
+        $this->response->setContentType('application/xml');
+        $this->response->setHeader('ETag', $etag);
+        // no-cache: 允许缓存但每次使用前必须回源校验; 配合 ETag, 未变化时只需一个 304
+        $this->response->setHeader('Cache-Control', 'no-cache');
+
+        $notModified = self::etagMatches($this->request->getHeader('If-None-Match'), $etag);
+        if ($notModified) {
+            $this->response->setStatus(304);
+        }
+
+        // 显式发送响应头: 不依赖 config.inc.php 是否调用了 Common::init() 的输出回调
+        Response::getInstance()->sendHeaders();
+
+        if (!$notModified) {
+            echo $xml;
+        }
+    }
+
+    /**
+     * If-None-Match 是否命中当前 ETag
+     *
+     * 按 RFC 9110 §13.1.2 使用弱比较: 忽略 W/ 前缀.
+     * Nginx 的 gzip / brotli 模块压缩响应时会把强 ETag 改成 W/"...", 客户端回传的也是弱形式.
+     *
+     * @param string|null $header If-None-Match 请求头
+     * @param string $etag 当前 ETag (带引号)
+     * @return bool
+     */
+    private static function etagMatches(?string $header, string $etag): bool
+    {
+        if ($header === null || trim($header) === '') {
+            return false;
+        }
+
+        if (trim($header) === '*') {
+            return true;
+        }
+
+        $opaque = static fn(string $tag): string => str_starts_with($tag, 'W/') ? substr($tag, 2) : $tag;
+
+        foreach (explode(',', $header) as $candidate) {
+            if ($opaque(trim($candidate)) === $opaque($etag)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
