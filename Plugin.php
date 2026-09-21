@@ -15,7 +15,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) {
  *
  * @package Sitemap
  * @author Vex
- * @version 0.1.3
+ * @version 0.1.4
  * @link https://github.com/vndroid/Sitemap.git
  */
 class Plugin implements PluginInterface

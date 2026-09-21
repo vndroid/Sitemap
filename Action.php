@@ -9,6 +9,7 @@ use Typecho\Db\Exception;
 use Typecho\Router;
 use Typecho\Widget;
 use Widget\ActionInterface;
+use Widget\Contents\Page\Rows as PageRows;
 use Widget\Metas\Category\Rows as CategoryRows;
 use Widget\Options;
 
@@ -60,8 +61,20 @@ class Action extends Widget implements ActionInterface
         echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
         echo "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
 
+        // 页面固定链接用到 {directory} (多级页面) 时, 与核心 Archive::___directory 一致: 父页面 slug + 自身 slug
+        $pageTree = in_array('directory', Router::get('page')['params'] ?? [], true)
+            ? PageRows::allocWithAlias('sitemap-page-rows')
+            : null;
+
         foreach ($pages as $page) {
             $type = $page['type'];
+
+            if ($pageTree !== null) {
+                $directory = $pageTree->getAllParentsSlug((int)$page['cid']);
+                $directory[] = $page['slug'];
+                $page['directory'] = implode('/', array_map('urlencode', $directory));
+            }
+
             $page['slug'] = urlencode($page['slug']);
             $pathinfo = Router::get($type) !== null ? Router::url($type, $page) : '#';
             $permalink = Common::url($pathinfo, $options->index);
@@ -77,9 +90,7 @@ class Action extends Widget implements ActionInterface
         // 只按固定链接实际用到的变量做补全, 用不到的一律不查
         $postParams = Router::get('post')['params'] ?? [];
         $needDirectory = in_array('directory', $postParams, true);
-        $needCategory = $needDirectory
-            || in_array('category', $postParams, true)
-            || in_array('mid', $postParams, true);
+        $needCategory = $needDirectory || in_array('category', $postParams, true);
         $needDate = [] !== array_intersect(['year', 'month', 'day'], $postParams);
 
         // 复用 Typecho 的分类树顺序, 再批量取回文章与分类的关系, 避免逐篇查询 (N+1)
@@ -116,8 +127,9 @@ class Action extends Widget implements ActionInterface
                     'table.relationships.cid',
                     'table.relationships.mid'
                 )->from('table.relationships')
+                    ->join('table.metas', 'table.relationships.mid = table.metas.mid')
                     ->where('table.relationships.cid IN ?', $chunk)
-                );
+                    ->where('table.metas.type = ?', 'category'));
 
                 foreach ($rows as $row) {
                     $cid = (int)$row['cid'];
@@ -146,16 +158,18 @@ class Action extends Widget implements ActionInterface
 
             if ($needCategory) {
                 $category = $articleCategories[$article['cid']]['row'] ?? null;
-                $article['category'] = urlencode($category['slug'] ?? '');
-                $article['mid'] = $category['mid'] ?? '';
+
+                // 固定链接含 {category}/{directory} 时, 无分类文章的核心链接会退化成缺段路径,
+                // 任何地址都访问不到 (404, 或 301 到 404), 不应提交给搜索引擎
+                if ($category === null) {
+                    continue;
+                }
+
+                $article['category'] = urlencode($category['slug']);
 
                 if ($needDirectory) {
-                    $directory = [];
-                    if ($category !== null) {
-                        $directory = $categoryRows->getAllParentsSlug((int)$category['mid']);
-                        $directory[] = $category['slug'];
-                    }
-
+                    $directory = $categoryRows->getAllParentsSlug((int)$category['mid']);
+                    $directory[] = $category['slug'];
                     $article['directory'] = implode('/', array_map('urlencode', $directory));
                 }
             }
