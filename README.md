@@ -7,7 +7,8 @@
 - 自动收录已发布、达到发布时间且未设置访问密码的**文章**（post）与**独立页面**（page）
 - 输出标准 XML 格式，兼容 Google Search Console、Bing Webmaster Tools 等主流搜索引擎
 - 文章优先级 `0.5`，页面优先级 `0.8`
-- 包含 `<lastmod>`（最后修改时间）、`<changefreq>` 字段
+- 包含 `<lastmod>`（最后修改时间，统一输出 UTC，如 `2026-03-01T08:30:00Z`）、`<changefreq>` 字段
+- 非 ASCII 的 slug（如中文）自动做 URL 编码，与站点 canonical 保持一致
 - 访问地址固定为 `/sitemap.xml`，无需额外配置
 
 ## 环境要求
@@ -53,13 +54,13 @@ https://yourdomain.com/sitemap.xml
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://yourdomain.com/about.html</loc>
-    <lastmod>2026-03-01</lastmod>
+    <lastmod>2026-03-01T08:30:00Z</lastmod>
     <changefreq>always</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://yourdomain.com/hello-world.html</loc>
-    <lastmod>2026-03-01</lastmod>
+    <lastmod>2026-03-01T08:30:00Z</lastmod>
     <changefreq>always</changefreq>
     <priority>0.5</priority>
   </url>

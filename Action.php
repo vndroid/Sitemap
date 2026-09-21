@@ -61,12 +61,13 @@ class Action extends Widget implements ActionInterface
 
         foreach ($pages as $page) {
             $type = $page['type'];
+            $page['slug'] = urlencode($page['slug']);
             $pathinfo = Router::get($type) !== null ? Router::url($type, $page) : '#';
             $permalink = Common::url($pathinfo, $options->index);
 
             echo "\t<url>\n";
             echo "\t\t<loc>" . htmlspecialchars($permalink) . "</loc>\n";
-            echo "\t\t<lastmod>" . date('Y-m-d', $page['modified']) . "</lastmod>\n";
+            echo "\t\t<lastmod>" . gmdate('Y-m-d\\TH:i:s\\Z', $page['modified']) . "</lastmod>\n";
             echo "\t\t<changefreq>always</changefreq>\n";
             echo "\t\t<priority>0.8</priority>\n";
             echo "\t</url>\n";
@@ -121,7 +122,7 @@ class Action extends Widget implements ActionInterface
 
             echo "\t<url>\n";
             echo "\t\t<loc>" . htmlspecialchars($permalink) . "</loc>\n";
-            echo "\t\t<lastmod>" . date('Y-m-d', $article['modified']) . "</lastmod>\n";
+            echo "\t\t<lastmod>" . gmdate('Y-m-d\\TH:i:s\\Z', $article['modified']) . "</lastmod>\n";
             echo "\t\t<changefreq>always</changefreq>\n";
             echo "\t\t<priority>0.5</priority>\n";
             echo "\t</url>\n";
